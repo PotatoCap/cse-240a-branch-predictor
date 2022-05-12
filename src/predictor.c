@@ -52,6 +52,38 @@ uint8_t *lhp_t;
 uint8_t *ghp_t;
 uint8_t *choice_t;
 
+uint8_t counter2Pred(uint8_t counter, char* message){
+  switch(counter){
+    case WN:
+      return NOTTAKEN;
+    case SN:
+      return NOTTAKEN;
+    case WT:
+      return TAKEN;
+    case ST:
+      return TAKEN;
+    default:
+      printf("%s", message);
+      return NOTTAKEN;
+  }
+}
+
+uint8_t updateCounter(uint8_t counter, uint8_t outcome, char* message){
+  switch(counter){
+    case WN:
+      return (outcome==TAKEN)?WT:SN;
+    case SN:
+      return (outcome==TAKEN)?WN:SN;
+    case WT:
+      return (outcome==TAKEN)?ST:WN;
+    case ST:
+      return (outcome==TAKEN)?ST:WT;
+    default:
+      printf("%s", message);
+      return counter;
+  }
+}
+
 //------------------------------------//
 //        Predictor Functions         //
 //------------------------------------//
@@ -241,6 +273,7 @@ make_prediction(uint32_t pc)
     case GSHARE:
       return gshare_predict(pc);
     case TOURNAMENT:
+      return tournament_predict(pc);
     case CUSTOM:
     default:
       break;
@@ -264,42 +297,11 @@ train_predictor(uint32_t pc, uint8_t outcome)
     case GSHARE:
       return train_gshare(pc, outcome);
     case TOURNAMENT:
+      return train_tournament(pc, outcome);
     case CUSTOM:
     default:
       break;
   }
   
 
-}
-
-uint8_t counter2Pred(uint8_t counter, char* message){
-  switch(counter){
-    case WN:
-      return NOTTAKEN;
-    case SN:
-      return NOTTAKEN;
-    case WT:
-      return TAKEN;
-    case ST:
-      return TAKEN;
-    default:
-      printf(message);
-      return NOTTAKEN;
-  }
-}
-
-uint8_t updateCounter(uint8_t counter, uint8_t outcome, char* message){
-  switch(counter){
-    case WN:
-      return (outcome==TAKEN)?WT:SN;
-    case SN:
-      return (outcome==TAKEN)?WN:SN;
-    case WT:
-      return (outcome==TAKEN)?ST:WN;
-    case ST:
-      return (outcome==TAKEN)?ST:WT;
-    default:
-      printf(message);
-      return counter;
-  }
 }
