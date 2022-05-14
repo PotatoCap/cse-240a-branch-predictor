@@ -165,14 +165,17 @@ cleanup_gshare() {
 //tournament functions
 void init_tournament() {
  int lht_entries = 1 << t_lh_bits;
+ int lhp_entries = 1 << t_lh_width;
  int ght_entries = 1 << t_gh_bits;
   lht_t = (uint16_t*)malloc(lht_entries * sizeof(uint16_t));
-  lhp_t = (uint8_t*)malloc(lht_entries * sizeof(uint8_t));
+  lhp_t = (uint8_t*)malloc(lhp_entries * sizeof(uint8_t));
   ghp_t = (uint8_t*)malloc(ght_entries * sizeof(uint8_t));
   choice_t = (uint8_t*)malloc(ght_entries * sizeof(uint8_t));
   int i = 0;
   for(i = 0; i< lht_entries; i++){
     lht_t[i] = 0;
+  }
+  for(i = 0; i< lhp_entries; i++){    
     lhp_t[i] = WN;
   }
   for(i = 0; i< ght_entries; i++){
@@ -217,7 +220,7 @@ train_tournament(uint32_t pc, uint8_t outcome) {
   int global_correct = counter2Pred(ghp_t[ghistory_lower_bits], "T GHP Invalid\n") == outcome;
   if (local_correct && !global_correct){
     choice_t[ghistory_lower_bits] = updateCounter(choice_t[ghistory_lower_bits], NOTTAKEN, "T Choice Invalid\n");
-  }else{
+  }else if(!local_correct && global_correct){
     choice_t[ghistory_lower_bits] = updateCounter(choice_t[ghistory_lower_bits], TAKEN, "T Choice Invalid\n");
   }
 
