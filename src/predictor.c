@@ -32,8 +32,8 @@ int t_lh_width = 10;
 int t_gh_bits = 12;
 
 int c_choice_bits = 13;
-int c_cache_bits = 10;
-int c_tag_bits = 1;
+int c_cache_bits = 12;
+int c_tag_bits = 2;
 
 int bpType;       // Branch Prediction Type
 int verbose;
@@ -67,8 +67,8 @@ struct cache_entry {
   uint8_t lru;
 };
 
-struct cache_entry *taken_cache;
-struct cache_entry *not_taken_cache;
+uint8_t *taken_cache;
+uint8_t *not_taken_cache;
 uint8_t prediction;
 
 uint8_t counter2Pred(uint8_t counter, char* message){
@@ -267,15 +267,15 @@ void init_custom() {
   int choice_entries = 1 << c_choice_bits;
   int cache_entries = 1 << c_cache_bits;
   choice_c = (uint8_t*)malloc(choice_entries * sizeof(uint8_t));
-  taken_cache = (struct cache_entry*)malloc(cache_entries * sizeof(struct cache_entry));
-  not_taken_cache = (struct cache_entry*)malloc(cache_entries * sizeof(struct cache_entry));
+  taken_cache = (uint8_t*)malloc(cache_entries * sizeof(uint8_t));
+  not_taken_cache = (uint8_t*)malloc(cache_entries * sizeof(uint8_t));
   int i = 0;
   for(i = 0; i< choice_entries; i++){
     choice_c[i] = WN;
   }
   for(i = 0; i < cache_entries; i++){
-    taken_cache[i] = (struct cache_entry) {0, WN, 0, WN, 1};
-    not_taken_cache[i] = (struct cache_entry) {0, WT, 0, WT, 1};
+    taken_cache[i] = WN;
+    not_taken_cache[i] = WT;
   }
   
   ghistory = 0;
@@ -290,25 +290,26 @@ custom_predict(uint32_t pc) {
   uint32_t gh_bits = 1 << c_cache_bits;
   uint32_t pc_lower_bits = pc & (gh_bits-1);
   uint32_t choice_index = pc & ((1 << c_choice_bits) - 1);
-  choice_index = choice_index ^ (ghistory & ((1 << c_choice_bits) - 1));
+  // choice_index = choice_index ^ (ghistory & ((1 << c_choice_bits) - 1));
   uint32_t ghistory_lower_bits = ghistory & (gh_bits -1);
   uint32_t cache_index = pc_lower_bits ^ ghistory_lower_bits;
   uint8_t cache_tag = pc & ((1 << c_tag_bits) - 1);
 
   uint8_t choice_p = counter2Pred(choice_c[choice_index], "C Choice invalid\n");
-  struct cache_entry *to_check = choice_p == TAKEN ? not_taken_cache : taken_cache;
-  struct cache_entry cache_block = to_check[cache_index];
-  if (cache_block.tag1 == cache_tag) {
-    //cache_block.lru = 1;
-    prediction = counter2Pred(cache_block.tnt1, "C Cache invalid\n");
-  }
+  uint8_t *to_check = choice_p == TAKEN ? not_taken_cache : taken_cache;
+  uint8_t cache_block = to_check[cache_index];
+  // if (cache_block.tag1 == cache_tag) {
+  //   cache_block.lru = 1;
+  //   prediction = counter2Pred(cache_block.tnt1, "C Cache invalid\n");
+  // }
   // else if(cache_block.tag2 == cache_tag) {
   //   cache_block.lru = 0;
   //   prediction = counter2Pred(cache_block.tnt2, "C Cache invalid\n");
   // }
-  else{
-    prediction = choice_p;
-  }
+  // else{
+  //   prediction = choice_p;
+  // }
+  prediction = counter2Pred(cache_block, "");
   return prediction;
 }
 
@@ -317,34 +318,35 @@ train_custom(uint32_t pc, uint8_t outcome) {
   uint32_t gh_bits = 1 << c_cache_bits;
   uint32_t pc_lower_bits = pc & (gh_bits-1);
   uint32_t choice_index = pc & ((1 << c_choice_bits) - 1);
-  choice_index = choice_index ^ (ghistory & ((1 << c_choice_bits) - 1));
+  // choice_index = choice_index ^ (ghistory & ((1 << c_choice_bits) - 1));
   uint32_t ghistory_lower_bits = ghistory & (gh_bits -1);
   uint32_t cache_index = pc_lower_bits ^ ghistory_lower_bits;
   uint8_t cache_tag = pc & ((1 << c_tag_bits) - 1);
 
   uint8_t choice_p = counter2Pred(choice_c[choice_index], "C Choice invalid\n");
-  struct cache_entry *to_check = choice_p == TAKEN ? not_taken_cache : taken_cache;
-  struct cache_entry cache_block = to_check[cache_index];
+  uint8_t *to_check = choice_p == TAKEN ? not_taken_cache : taken_cache;
+  uint8_t cache_block = to_check[cache_index];
 
   // update taken/not taken cache
-  if (cache_block.tag1 == cache_tag) {
-    cache_block.tnt1 = updateCounter(cache_block.tnt1, outcome, "C Cache invalid\n");
-  }
+  // if (cache_block.tag1 == cache_tag) {
+  //   cache_block.tnt1 = updateCounter(cache_block.tnt1, outcome, "C Cache invalid\n");
+  // }
   // else if(cache_block.tag2 == cache_tag) {
   //   cache_block.tnt2 = updateCounter(cache_block.tnt2, outcome, "C Cache invalid\n");
   // }
-  else if(prediction != outcome){
-    if (choice_p == cache_block.tnt1) {
-      cache_block.tnt1 = outcome == TAKEN ? WT : WN;
-      cache_block.tag1 = cache_tag;
-      cache_block.lru = 1;
-    } 
-    // else {
-    //   cache_block.tnt2 = outcome == TAKEN ? WT : WN;
-    //   cache_block.tag2 = cache_tag;
-    //   cache_block.lru = 0;
-    // }
-  }
+  // else if(prediction != outcome){
+  //   if (choice_p == cache_block.tnt1 || cache_block.lru == 0) {
+  //     cache_block.tnt1 = outcome == TAKEN ? WT : WN;
+  //     cache_block.tag1 = cache_tag;
+  //     cache_block.lru = 1;
+  //   } 
+  //   else {
+  //     cache_block.tnt2 = outcome == TAKEN ? WT : WN;
+  //     cache_block.tag2 = cache_tag;
+  //     cache_block.lru = 0;
+  //   }
+  // }
+  to_check[cache_index] = updateCounter(cache_block, outcome, "");
 
   //update choice
   if (!(choice_p != outcome && prediction == outcome)){
