@@ -33,7 +33,7 @@ int t_gh_bits = 12;
 
 int c_choice_bits = 12;
 int c_cache_bits = 10;
-int c_tag_bits = 3;
+int c_tag_bits = 2;
 
 int bpType;       // Branch Prediction Type
 int verbose;
@@ -290,20 +290,20 @@ custom_predict(uint32_t pc) {
   uint32_t gh_bits = 1 << c_cache_bits;
   uint32_t pc_lower_bits = pc & (gh_bits-1);
   uint32_t choice_index = pc & ((1 << c_choice_bits) - 1);
+  choice_index = choice_index ^ (ghistory & ((1 << c_choice_bits) - 1));
   uint32_t ghistory_lower_bits = ghistory & (gh_bits -1);
-  uint32_t cache_block_index = pc_lower_bits ^ ghistory_lower_bits;
+  uint32_t cache_index = pc_lower_bits ^ ghistory_lower_bits;
   uint8_t cache_tag = pc & ((1 << c_tag_bits) - 1);
-  uint8_t cache_index = cache_block_index >> c_tag_bits;
 
   uint8_t choice_p = counter2Pred(choice_c[choice_index], "C Choice invalid\n");
   struct cache_entry *to_check = choice_p == TAKEN ? not_taken_cache : taken_cache;
-  struct cache_entry cache_entry = to_check[cache_index];
-  if (cache_entry.tag1 == cache_tag) {
-    cache_entry.lru = 1;
-    prediction = counter2Pred(cache_entry.tnt1, "C Cache invalid\n");
-  }else if(cache_entry.tag2 == cache_tag) {
-    cache_entry.lru = 0;
-    prediction = counter2Pred(cache_entry.tnt2, "C Cache invalid\n");
+  struct cache_entry cache_block = to_check[cache_index];
+  if (cache_block.tag1 == cache_tag) {
+    cache_block.lru = 1;
+    prediction = counter2Pred(cache_block.tnt1, "C Cache invalid\n");
+  }else if(cache_block.tag2 == cache_tag) {
+    cache_block.lru = 0;
+    prediction = counter2Pred(cache_block.tnt2, "C Cache invalid\n");
   }else{
     prediction = choice_p;
   }
@@ -313,32 +313,31 @@ custom_predict(uint32_t pc) {
 void
 train_custom(uint32_t pc, uint8_t outcome) {
   uint32_t gh_bits = 1 << c_cache_bits;
-  uint32_t cache_entries = 1 << c_cache_bits;
   uint32_t pc_lower_bits = pc & (gh_bits-1);
   uint32_t choice_index = pc & ((1 << c_choice_bits) - 1);
+  choice_index = choice_index ^ (ghistory & ((1 << c_choice_bits) - 1));
   uint32_t ghistory_lower_bits = ghistory & (gh_bits -1);
-  uint32_t cache_block_index = pc_lower_bits ^ ghistory_lower_bits;
+  uint32_t cache_index = pc_lower_bits ^ ghistory_lower_bits;
   uint8_t cache_tag = pc & ((1 << c_tag_bits) - 1);
-  uint8_t cache_index = cache_block_index >> c_tag_bits;
 
   uint8_t choice_p = counter2Pred(choice_c[choice_index], "C Choice invalid\n");
   struct cache_entry *to_check = choice_p == TAKEN ? not_taken_cache : taken_cache;
-  struct cache_entry cache_entry = to_check[cache_index];
+  struct cache_entry cache_block = to_check[cache_index];
 
-  //update taken/not taken cache
-  if (cache_entry.tag1 == cache_tag) {
-    cache_entry.tnt1 = updateCounter(cache_entry.tnt1, outcome, "C Cache invalid\n");
-  }else if(cache_entry.tag2 == cache_tag) {
-    cache_entry.tnt2 = updateCounter(cache_entry.tnt2, outcome, "C Cache invalid\n");
-  }else if(choice_p != outcome){
-    if (choice_p == cache_entry.tnt1 || cache_entry.lru == 0) {
-      cache_entry.tnt1 = outcome == TAKEN ? WT : WN;
-      cache_entry.tag1 = cache_tag;
-      cache_entry.lru = 1;
+  // update taken/not taken cache
+  if (cache_block.tag1 == cache_tag) {
+    cache_block.tnt1 = updateCounter(cache_block.tnt1, outcome, "C Cache invalid\n");
+  }else if(cache_block.tag2 == cache_tag) {
+    cache_block.tnt2 = updateCounter(cache_block.tnt2, outcome, "C Cache invalid\n");
+  }else if(prediction != outcome){
+    if (choice_p == cache_block.tnt1 || cache_block.lru == 0) {
+      cache_block.tnt1 = outcome == TAKEN ? WT : WN;
+      cache_block.tag1 = cache_tag;
+      cache_block.lru = 1;
     } else {
-      cache_entry.tnt2 = outcome == TAKEN ? WT : WN;
-      cache_entry.tag2 = cache_tag;
-      cache_entry.lru = 0;
+      cache_block.tnt2 = outcome == TAKEN ? WT : WN;
+      cache_block.tag2 = cache_tag;
+      cache_block.lru = 0;
     }
   }
 
@@ -371,6 +370,7 @@ init_predictor()
       break;
     case CUSTOM:
       init_custom();
+      break;
     default:
       break;
   }
