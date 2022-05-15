@@ -31,6 +31,11 @@ int t_lh_bits = 10;
 int t_lh_width = 10;
 int t_gh_bits = 12;
 
+int c_gh_bits = 12;
+int c_choice_bits = 12;
+int c_cache_bits = 10;
+int c_tag_bits = 2;
+
 int bpType;       // Branch Prediction Type
 int verbose;
 
@@ -51,6 +56,20 @@ uint16_t *lht_t;
 uint8_t *lhp_t;
 uint8_t *ghp_t;
 uint8_t *choice_t;
+
+//custom
+uint8_t *choice_c;
+
+struct cache_entry {
+  uint8_t tag1;
+  uint8_t tnt1;
+  uint8_t tag2;
+  uint8_t tnt2;
+  uint8_t lru;
+};
+
+struct cache_entry *taken_cache;
+struct cache_entry *not_taken_cache;
 
 uint8_t counter2Pred(uint8_t counter, char* message){
   switch(counter){
@@ -243,6 +262,101 @@ cleanup_tournament() {
   free(choice_t);
 }
 
+//YAGS functions
+void init_custom() {
+  int choice_entries = 1 << c_choice_bits;
+  int cache_entries = 1 << c_cache_bits;
+  choice_c = (uint8_t*)malloc(choice_entries * sizeof(uint8_t));
+  taken_cache = (struct cache_entry*)malloc(cache_entries * sizeof(struct cache_entry));
+  not_taken_cache = (struct cache_entry*)malloc(cache_entries * sizeof(struct cache_entry));
+  int i = 0;
+  for(i = 0; i< choice_entries; i++){
+    choice_c[i] = WN;
+  }
+  for(i = 0; i < cache_entries; i++){
+    struct cache_entry t = {0b00, 0b01, 0b00, 0b01, 1};
+    struct cache_entry nt = {0b00, 0b10, 0b00, 0b10, 1};
+    taken_cache[i] = t;
+    not_taken_cache[i] = nt;
+  }
+  
+  ghistory = 0;
+}
+
+
+
+uint8_t 
+custom_predict(uint32_t pc) {
+  //get lower ghistoryBits of pc
+  uint32_t gh_bits = 1 << c_gh_bits;
+  uint32_t cache_entries = 1 << c_cache_bits;
+  uint32_t pc_lower_bits = pc & (gh_bits-1);
+  uint32_t choice_index = pc & ((1 << c_choice_bits) - 1);
+  uint32_t ghistory_lower_bits = ghistory & (gh_bits -1);
+  uint32_t cache_block_index = pc_lower_bits ^ ghistory_lower_bits;
+  uint8_t cache_tag = cache_block_index & 0b11;
+  uint8_t cache_index = cache_block_index >> c_tag_bits;
+
+  uint8_t choice_p = counter2Pred(choice_c[choice_index], "C Choice invalid\n");
+  struct cache_entry *to_check = choice_p == TAKEN ? not_taken_cache : taken_cache;
+  struct cache_entry cache_entry = to_check[cache_index];
+  if (cache_entry.tag1 == cache_tag) {
+    cache_entry.lru = 1;
+    return counter2Pred(cache_entry.tnt1, "C Cache invalid\n");
+  }else if(cache_entry.tag2 == cache_tag) {
+    cache_entry.lru = 0;
+    return counter2Pred(cache_entry.tnt2, "C Cache invalid\n");
+  }else{
+    return choice_p;
+  }
+}
+
+void
+train_custom(uint32_t pc, uint8_t outcome) {
+  uint32_t gh_bits = 1 << c_gh_bits;
+  uint32_t cache_entries = 1 << c_cache_bits;
+  uint32_t pc_lower_bits = pc & (gh_bits-1);
+  uint32_t choice_index = pc & ((1 << c_choice_bits) - 1);
+  uint32_t ghistory_lower_bits = ghistory & (gh_bits -1);
+  uint32_t cache_block_index = pc_lower_bits ^ ghistory_lower_bits;
+  uint8_t cache_tag = cache_block_index & 0b11;
+  uint8_t cache_index = cache_block_index >> c_tag_bits;
+
+  uint8_t choice_p = counter2Pred(choice_c[choice_index], "C Choice invalid\n");
+  struct cache_entry *to_check = choice_p == TAKEN ? not_taken_cache : taken_cache;
+  struct cache_entry cache_entry = to_check[cache_index];
+
+  //update taken/not taken cache
+  if (cache_entry.tag1 == cache_tag) {
+    cache_entry.tnt1 = updateCounter(cache_entry.tnt1, outcome, "C Cache invalid\n");
+  }else if(cache_entry.tag2 == cache_tag) {
+    cache_entry.tnt2 = updateCounter(cache_entry.tnt2, outcome, "C Cache invalid\n");
+  }else{
+    if (choice_p == cache_entry.tnt1 || cache_entry.lru == 0) {
+      cache_entry.tnt1 = outcome == TAKEN ? WT : WN;
+      cache_entry.tag1 = cache_tag;
+      cache_entry.lru = 1;
+    } else {
+      cache_entry.tnt2 = outcome == TAKEN ? WT : WN;
+      cache_entry.tag2 = cache_tag;
+      cache_entry.lru = 0;
+    }    
+  }
+
+  //update choice
+  choice_c[choice_index] = updateCounter(choice_c[choice_index], outcome, "C Cache invalid");
+
+  //Update history register
+  ghistory = ((ghistory << 1) | outcome); 
+}
+
+void
+cleanup_custom() {
+  free(choice_c);
+  free(taken_cache);
+  free(not_taken_cache);
+}
+
 void
 init_predictor()
 {
@@ -255,6 +369,7 @@ init_predictor()
       init_tournament();
       break;
     case CUSTOM:
+      init_custom();
     default:
       break;
   }
@@ -278,6 +393,7 @@ make_prediction(uint32_t pc)
     case TOURNAMENT:
       return tournament_predict(pc);
     case CUSTOM:
+      return custom_predict(pc);
     default:
       break;
   }
@@ -302,6 +418,7 @@ train_predictor(uint32_t pc, uint8_t outcome)
     case TOURNAMENT:
       return train_tournament(pc, outcome);
     case CUSTOM:
+      return train_custom(pc, outcome);
     default:
       break;
   }
