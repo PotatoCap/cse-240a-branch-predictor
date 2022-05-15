@@ -57,15 +57,6 @@ uint8_t *choice_t;
 
 //custom
 uint8_t *choice_c;
-
-struct cache_entry {
-  uint8_t tag1;
-  uint8_t tnt1;
-  uint8_t tag2;
-  uint8_t tnt2;
-  uint8_t lru;
-};
-
 uint8_t *taken_cache;
 uint8_t *not_taken_cache;
 uint8_t prediction;
@@ -293,9 +284,8 @@ custom_predict(uint32_t pc) {
 
   uint8_t choice_p = counter2Pred(choice_c[choice_index], "C Choice invalid\n");
   uint8_t *to_check = choice_p == TAKEN ? not_taken_cache : taken_cache;
-  uint8_t cache_block = to_check[cache_index];
-  prediction = counter2Pred(cache_block, "");
-  return prediction;
+  uint8_t cache_p = to_check[cache_index];
+  return counter2Pred(cache_p, "C Cache invalid");
 }
 
 void
@@ -308,13 +298,13 @@ train_custom(uint32_t pc, uint8_t outcome) {
 
   uint8_t choice_p = counter2Pred(choice_c[choice_index], "C Choice invalid\n");
   uint8_t *to_check = choice_p == TAKEN ? not_taken_cache : taken_cache;
-  uint8_t cache_block = to_check[cache_index];
+  uint8_t cache_p = to_check[cache_index];
 
-  to_check[cache_index] = updateCounter(cache_block, outcome, "");
+  to_check[cache_index] = updateCounter(cache_p, outcome, "C Cache invalid");
 
   //update choice
-  if (!(choice_p != outcome && prediction == outcome)){
-    choice_c[choice_index] = updateCounter(choice_c[choice_index], outcome, "C Cache invalid");
+  if (!(choice_p != outcome && cache_p == outcome)){
+    choice_c[choice_index] = updateCounter(choice_c[choice_index], outcome, "C Choice invalid");
   }
 
   //Update history register
