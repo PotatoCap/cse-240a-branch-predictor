@@ -31,8 +31,8 @@ int t_lh_bits = 10;
 int t_lh_width = 10;
 int t_gh_bits = 12;
 
-int c_choice_bits = 13;
-int c_cache_bits = 9;
+int c_choice_bits = 12;
+int c_cache_bits = 10;
 int c_tag_bits = 2;
 
 int bpType;       // Branch Prediction Type
