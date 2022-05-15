@@ -31,9 +31,9 @@ int t_lh_bits = 10;
 int t_lh_width = 10;
 int t_gh_bits = 12;
 
-int c_choice_bits = 12;
+int c_choice_bits = 13;
 int c_cache_bits = 10;
-int c_tag_bits = 2;
+int c_tag_bits = 1;
 
 int bpType;       // Branch Prediction Type
 int verbose;
@@ -299,12 +299,14 @@ custom_predict(uint32_t pc) {
   struct cache_entry *to_check = choice_p == TAKEN ? not_taken_cache : taken_cache;
   struct cache_entry cache_block = to_check[cache_index];
   if (cache_block.tag1 == cache_tag) {
-    cache_block.lru = 1;
+    //cache_block.lru = 1;
     prediction = counter2Pred(cache_block.tnt1, "C Cache invalid\n");
-  }else if(cache_block.tag2 == cache_tag) {
-    cache_block.lru = 0;
-    prediction = counter2Pred(cache_block.tnt2, "C Cache invalid\n");
-  }else{
+  }
+  // else if(cache_block.tag2 == cache_tag) {
+  //   cache_block.lru = 0;
+  //   prediction = counter2Pred(cache_block.tnt2, "C Cache invalid\n");
+  // }
+  else{
     prediction = choice_p;
   }
   return prediction;
@@ -327,18 +329,21 @@ train_custom(uint32_t pc, uint8_t outcome) {
   // update taken/not taken cache
   if (cache_block.tag1 == cache_tag) {
     cache_block.tnt1 = updateCounter(cache_block.tnt1, outcome, "C Cache invalid\n");
-  }else if(cache_block.tag2 == cache_tag) {
-    cache_block.tnt2 = updateCounter(cache_block.tnt2, outcome, "C Cache invalid\n");
-  }else if(prediction != outcome){
-    if (choice_p == cache_block.tnt1 || cache_block.lru == 0) {
+  }
+  // else if(cache_block.tag2 == cache_tag) {
+  //   cache_block.tnt2 = updateCounter(cache_block.tnt2, outcome, "C Cache invalid\n");
+  // }
+  else if(prediction != outcome){
+    if (choice_p == cache_block.tnt1) {
       cache_block.tnt1 = outcome == TAKEN ? WT : WN;
       cache_block.tag1 = cache_tag;
       cache_block.lru = 1;
-    } else {
-      cache_block.tnt2 = outcome == TAKEN ? WT : WN;
-      cache_block.tag2 = cache_tag;
-      cache_block.lru = 0;
-    }
+    } 
+    // else {
+    //   cache_block.tnt2 = outcome == TAKEN ? WT : WN;
+    //   cache_block.tag2 = cache_tag;
+    //   cache_block.lru = 0;
+    // }
   }
 
   //update choice
